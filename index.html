@@ -55,8 +55,8 @@
     <div class="card model-card" id="modelCard">
       <svg id="model" viewBox="0 0 400 430" role="img" aria-label="Flaschenzugmodell mit nach unten hängendem Zugseil">
         <defs>
-          <marker id="arrowDown" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-            <path d="M0,0 L10,5 L0,10 Z" fill="#a3402b"/>
+          <marker id="arrowDown" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#a3402b"/>
           </marker>
           <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stop-color="#9c6b3a"/><stop offset="100%" stop-color="#6b4423"/>
@@ -111,67 +111,114 @@
   }
   function add(parent, tag, attrs={}) { const el=svg(tag,attrs); parent.appendChild(el); return el; }
   function pulley(parent,x,y,moving=false,small=false){
-    if(!moving) add(parent,'line',{x1:x,y1:36,x2:x,y2:y-16,stroke:'#5c3d22','stroke-width':3});
+    if(!moving) add(parent,'line',{x1:x,y1:36,x2:x,y2:y-(small?12:16),stroke:'#5c3d22','stroke-width':3});
     add(parent,'circle',{cx:x,cy:y,r:small?12:16,fill:small?'#eadcc7':'#d8b98a',stroke:small?'#9b8b75':'#8a5a34','stroke-width':3});
     add(parent,'circle',{cx:x,cy:y,r:3.5,fill:'#5c3d22'});
   }
   function path(parent,d,color='#6b6b6b',width=3,cls='rope-motion'){
     return add(parent,'path',{d,fill:'none',stroke:color,'stroke-width':width,'stroke-linecap':'round','stroke-linejoin':'round',class:cls});
   }
+  function strandNumber(parent,n,x,y){
+    add(parent,'circle',{cx:x,cy:y,r:10,fill:'#fbf6ec',stroke:'#d8c4a8','stroke-width':1.5});
+    const t=add(parent,'text',{x,y:y+4,'text-anchor':'middle','font-size':12,fill:'#5c3d22','font-weight':900});
+    t.textContent=String(n);
+  }
 
   function renderModel(){
     fixedLayer.innerHTML=''; ropeLayer.innerHTML=''; movingLayer.innerHTML=''; freeEndLayer.innerHTML='';
     const supporting = rolls + 1;
-    const left=72, right=285, topY=92, bottomY=225;
-    const xPositions = Array.from({length:rolls},(_,i)=> rolls===1 ? 178 : left + i*(right-left)/(rolls-1));
+    const topY=92, bottomY=225;
+    const left=95, right=285;
+    const xPositions = Array.from({length:rolls},(_,i)=> rolls===1 ? 170 : left + i*(right-left)/(rolls-1));
     const movingXs=[], fixedXs=[];
     xPositions.forEach((x,i)=> (i%2===0?movingXs:fixedXs).push(x));
 
     fixedXs.forEach(x=>pulley(fixedLayer,x,topY,false));
     movingXs.forEach(x=>pulley(movingLayer,x,bottomY,true));
 
-    // kleine Umlenkrolle ganz rechts: sorgt dafür, dass das freie Seilende immer nach unten zeigt.
-    const guideX=332, guideY=92;
-    pulley(fixedLayer,guideX,guideY,false,true);
-    const guideLabel=add(fixedLayer,'text',{x:guideX,y:63,'text-anchor':'middle','font-size':10,fill:'#7a5c3e'}); guideLabel.textContent='Umlenkung';
+    // Nur bei ungerader Rollenzahl wird am Ende eine zusätzliche reine Umlenkrolle benötigt,
+    // damit das freie Ende nach unten zeigen kann. Bei 2 und 4 Rollen übernimmt das bereits
+    // die letzte feste Rolle.
+    const needsGuide = rolls % 2 === 1;
+    const lastX = xPositions[xPositions.length-1];
+    const guideX = rolls===1 ? 285 : Math.min(335,lastX+50);
+    const guideY = topY;
+    if(needsGuide){
+      pulley(fixedLayer,guideX,guideY,false,true);
+      const guideLabel=add(fixedLayer,'text',{x:guideX,y:63,'text-anchor':'middle','font-size':10,fill:'#7a5c3e'});
+      guideLabel.textContent='Umlenkung';
+    }
 
     // Traverse und Last gehören zur beweglichen Baugruppe.
     if(movingXs.length){
       const min=Math.min(...movingXs)-24,max=Math.max(...movingXs)+24;
       add(movingLayer,'rect',{x:min,y:bottomY+25,width:max-min,height:8,rx:3,fill:'#8a5a34'});
-      add(movingLayer,'line',{x1:200,y1:bottomY+33,x2:200,y2:300,stroke:'#5c3d22','stroke-width':4});
-      add(movingLayer,'path',{d:'M181 300 L219 300 L212 330 L188 330 Z',fill:'#7a4a24',stroke:'#4a2e15','stroke-width':2});
-      add(movingLayer,'rect',{x:150,y:332,width:100,height:64,rx:12,fill:'url(#weightGradient)',stroke:'#4a2e15','stroke-width':2});
-      const t1=add(movingLayer,'text',{x:200,y:358,'text-anchor':'middle','font-size':13,fill:'white','font-weight':700});t1.textContent='DU HEBST';
-      const t2=add(movingLayer,'text',{x:200,y:382,'text-anchor':'middle','font-size':20,fill:'white','font-weight':900});t2.textContent=(bodyWeight*supporting)+' kg';
+      add(movingLayer,'line',{x1:200,y1:bottomY+33,x2:200,y2:294,stroke:'#5c3d22','stroke-width':4});
+      // Kleiner Haken statt des bisher sehr großen Pfeils über der Last.
+      add(movingLayer,'path',{d:'M190 294 L210 294 L206 311 L194 311 Z',fill:'#7a4a24',stroke:'#4a2e15','stroke-width':2});
+      add(movingLayer,'rect',{x:150,y:320,width:100,height:64,rx:12,fill:'url(#weightGradient)',stroke:'#4a2e15','stroke-width':2});
+      const t1=add(movingLayer,'text',{x:200,y:346,'text-anchor':'middle','font-size':13,fill:'white','font-weight':700});t1.textContent='DU HEBST';
+      const t2=add(movingLayer,'text',{x:200,y:370,'text-anchor':'middle','font-size':20,fill:'white','font-weight':900});t2.textContent=(bodyWeight*supporting)+' kg';
     }
 
-    // Durchgehende, gut lesbare Seilführung. Die Seilenden werden so gelegt,
-    // dass mehrere tragende Stränge sichtbar sind; die letzte Umlenkrolle führt das freie Ende nach unten.
-    const points=[];
-    const anchorX=48;
-    points.push([anchorX,42]);
-    let lowerIndex=0, fixedIndex=0;
     const sequence=[];
-    for(let i=0;i<rolls;i++) sequence.push(i%2===0?{type:'M',x:xPositions[i]}:{type:'F',x:xPositions[i]});
+    for(let i=0;i<rolls;i++) sequence.push({type:i%2===0?'M':'F',x:xPositions[i]});
+
+    // Der erste Seilstrang beginnt genau über dem linken Rand der ersten beweglichen Rolle.
+    // Dadurch ist er bei einer Rolle (und auch bei den anderen Varianten) sauber senkrecht.
+    const anchorX = sequence[0].x-16;
+    const anchorY = 42;
+    add(ropeLayer,'circle',{cx:anchorX,cy:anchorY,r:5,fill:'#5c3d22'});
+
+    let d=`M ${anchorX} ${anchorY}`;
+    const numberedSegments=[];
+    let prev={x:anchorX,y:anchorY};
+
     sequence.forEach(item=>{
-      if(item.type==='M') points.push([item.x-16,bottomY],[item.x+16,bottomY]);
-      else points.push([item.x-16,topY],[item.x+16,topY]);
+      const y=item.type==='M'?bottomY:topY;
+      const entry={x:item.x-16,y};
+      const exit={x:item.x+16,y};
+      d+=` L ${entry.x} ${entry.y}`;
+      numberedSegments.push({a:prev,b:entry});
+      if(item.type==='M') d+=` Q ${item.x} ${y+23} ${exit.x} ${exit.y}`;
+      else d+=` Q ${item.x} ${y-23} ${exit.x} ${exit.y}`;
+      prev=exit;
     });
-    points.push([guideX-12,guideY],[guideX+12,guideY]);
-    let d=`M ${points[0][0]} ${points[0][1]}`;
-    for(let i=1;i<points.length;i++) d+=` L ${points[i][0]} ${points[i][1]}`;
+
+    let freeX;
+    if(needsGuide){
+      const guideEntry={x:guideX-12,y:guideY};
+      const guideExit={x:guideX+12,y:guideY};
+      d+=` L ${guideEntry.x} ${guideEntry.y} Q ${guideX} ${guideY-18} ${guideExit.x} ${guideExit.y}`;
+      numberedSegments.push({a:prev,b:guideEntry});
+      freeX=guideExit.x+8;
+    }else{
+      // Bei 2 und 4 Rollen kommt das Seil direkt aus der letzten festen Rolle nach unten.
+      freeX=prev.x+8;
+    }
     path(ropeLayer,d);
-    // feste Verankerung markieren
-    add(ropeLayer,'circle',{cx:anchorX,cy:42,r:5,fill:'#5c3d22'});
 
     // Freies Ende immer senkrecht nach unten.
-    path(freeEndLayer,`M ${guideX+12} ${guideY} Q ${guideX+22} ${guideY+6} ${guideX+22} ${guideY+22} L ${guideX+22} 315`,'#a3402b',4,'rope-motion');
-    add(freeEndLayer,'line',{x1:guideX+22,y1:248,x2:guideX+22,y2:315,stroke:'#a3402b','stroke-width':4,'marker-end':'url(#arrowDown)'});
-    const txt=add(freeEndLayer,'text',{x:guideX-2,y:340,'font-size':13,fill:'#a3402b','font-weight':800,'text-anchor':'middle'});txt.textContent='Hier hängst du!';
+    const freeTop=needsGuide?guideY+5:topY+4;
+    path(freeEndLayer,`M ${freeX-8} ${freeTop} Q ${freeX} ${freeTop+5} ${freeX} ${freeTop+16} L ${freeX} 304`,'#a3402b',4,'rope-motion');
+    add(freeEndLayer,'line',{x1:freeX,y1:245,x2:freeX,y2:304,stroke:'#a3402b','stroke-width':4,'marker-end':'url(#arrowDown)'});
+    const txt=add(freeEndLayer,'text',{x:freeX,y:331,'font-size':13,fill:'#a3402b','font-weight':800,'text-anchor':'middle'});txt.textContent='Hier hängst du!';
 
-    // Kraftaufteilung sichtbar machen.
-    const label=add(ropeLayer,'text',{x:70,y:178,'font-size':12,fill:'#5c3d22','font-weight':700});
+    // Die Seilstücke wie im Referenzbild direkt durchnummerieren.
+    // Das letzte Seilstück ist bei gerader Rollenzahl das rote freie Ende.
+    numberedSegments.forEach((seg,i)=>{
+      const mx=(seg.a.x+seg.b.x)/2;
+      const my=(seg.a.y+seg.b.y)/2;
+      const dx=seg.b.x-seg.a.x, dy=seg.b.y-seg.a.y;
+      const len=Math.hypot(dx,dy)||1;
+      const ox=-dy/len*14, oy=dx/len*14;
+      strandNumber(ropeLayer,i+1,mx+ox,my+oy);
+    });
+    if(numberedSegments.length<supporting){
+      strandNumber(freeEndLayer,supporting,freeX+18,(freeTop+304)/2);
+    }
+
+    const label=add(ropeLayer,'text',{x:62,y:190,'font-size':12,fill:'#5c3d22','font-weight':700});
     label.textContent=`${supporting} tragende Seilstücke`;
   }
 
