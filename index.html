@@ -97,8 +97,10 @@
 </main>
 <script>
 (() => {
-  const rollOptions = [1,2,3,4,5];
-  let rolls = 3;
+  // Nur gerade Rollenzahlen: So endet das Seil ohne zusätzliche Umlenkrolle nach unten.
+  // Die gewählte Rollenzahl entspricht zugleich der Zahl der tragenden Seilstücke.
+  const rollOptions = [2,4,6];
+  let rolls = 4;
   let bodyWeight = 40;
   const ns = 'http://www.w3.org/2000/svg';
   const $ = id => document.getElementById(id);
@@ -110,9 +112,9 @@
     return el;
   }
   function add(parent, tag, attrs={}) { const el=svg(tag,attrs); parent.appendChild(el); return el; }
-  function pulley(parent,x,y,moving=false,small=false){
-    if(!moving) add(parent,'line',{x1:x,y1:36,x2:x,y2:y-(small?12:16),stroke:'#5c3d22','stroke-width':3});
-    add(parent,'circle',{cx:x,cy:y,r:small?12:16,fill:small?'#eadcc7':'#d8b98a',stroke:small?'#9b8b75':'#8a5a34','stroke-width':3});
+  function pulley(parent,x,y,moving=false){
+    if(!moving) add(parent,'line',{x1:x,y1:36,x2:x,y2:y-16,stroke:'#5c3d22','stroke-width':3});
+    add(parent,'circle',{cx:x,cy:y,r:16,fill:'#d8b98a',stroke:'#8a5a34','stroke-width':3});
     add(parent,'circle',{cx:x,cy:y,r:3.5,fill:'#5c3d22'});
   }
   function path(parent,d,color='#6b6b6b',width=3,cls='rope-motion'){
@@ -126,46 +128,32 @@
 
   function renderModel(){
     fixedLayer.innerHTML=''; ropeLayer.innerHTML=''; movingLayer.innerHTML=''; freeEndLayer.innerHTML='';
-    const supporting = rolls + 1;
+    const supporting = rolls;
     const topY=92, bottomY=225;
-    const left=95, right=285;
-    const xPositions = Array.from({length:rolls},(_,i)=> rolls===1 ? 170 : left + i*(right-left)/(rolls-1));
+    const left=72, right=290;
+    const xPositions = Array.from({length:rolls},(_,i)=> left + i*(right-left)/(rolls-1));
     const movingXs=[], fixedXs=[];
     xPositions.forEach((x,i)=> (i%2===0?movingXs:fixedXs).push(x));
 
     fixedXs.forEach(x=>pulley(fixedLayer,x,topY,false));
     movingXs.forEach(x=>pulley(movingLayer,x,bottomY,true));
 
-    // Nur bei ungerader Rollenzahl wird am Ende eine zusätzliche reine Umlenkrolle benötigt,
-    // damit das freie Ende nach unten zeigen kann. Bei 2 und 4 Rollen übernimmt das bereits
-    // die letzte feste Rolle.
-    const needsGuide = rolls % 2 === 1;
-    const lastX = xPositions[xPositions.length-1];
-    const guideX = rolls===1 ? 285 : Math.min(335,lastX+50);
-    const guideY = topY;
-    if(needsGuide){
-      pulley(fixedLayer,guideX,guideY,false,true);
-      const guideLabel=add(fixedLayer,'text',{x:guideX,y:63,'text-anchor':'middle','font-size':10,fill:'#7a5c3e'});
-      guideLabel.textContent='Umlenkung';
-    }
-
     // Traverse und Last gehören zur beweglichen Baugruppe.
     if(movingXs.length){
       const min=Math.min(...movingXs)-24,max=Math.max(...movingXs)+24;
       add(movingLayer,'rect',{x:min,y:bottomY+25,width:max-min,height:8,rx:3,fill:'#8a5a34'});
       add(movingLayer,'line',{x1:200,y1:bottomY+33,x2:200,y2:294,stroke:'#5c3d22','stroke-width':4});
-      // Kleiner Haken statt des bisher sehr großen Pfeils über der Last.
       add(movingLayer,'path',{d:'M190 294 L210 294 L206 311 L194 311 Z',fill:'#7a4a24',stroke:'#4a2e15','stroke-width':2});
       add(movingLayer,'rect',{x:150,y:320,width:100,height:64,rx:12,fill:'url(#weightGradient)',stroke:'#4a2e15','stroke-width':2});
       const t1=add(movingLayer,'text',{x:200,y:346,'text-anchor':'middle','font-size':13,fill:'white','font-weight':700});t1.textContent='DU HEBST';
       const t2=add(movingLayer,'text',{x:200,y:370,'text-anchor':'middle','font-size':20,fill:'white','font-weight':900});t2.textContent=(bodyWeight*supporting)+' kg';
     }
 
+    // Wechselnd bewegliche und feste Rollen: M-F-M-F ...
+    // Da nur gerade Zahlen erlaubt sind, ist die letzte Rolle immer fest und das freie Ende kann direkt nach unten laufen.
     const sequence=[];
     for(let i=0;i<rolls;i++) sequence.push({type:i%2===0?'M':'F',x:xPositions[i]});
 
-    // Der erste Seilstrang beginnt genau über dem linken Rand der ersten beweglichen Rolle.
-    // Dadurch ist er bei einer Rolle (und auch bei den anderen Varianten) sauber senkrecht.
     const anchorX = sequence[0].x-16;
     const anchorY = 42;
     add(ropeLayer,'circle',{cx:anchorX,cy:anchorY,r:5,fill:'#5c3d22'});
@@ -184,28 +172,16 @@
       else d+=` Q ${item.x} ${y-23} ${exit.x} ${exit.y}`;
       prev=exit;
     });
-
-    let freeX;
-    if(needsGuide){
-      const guideEntry={x:guideX-12,y:guideY};
-      const guideExit={x:guideX+12,y:guideY};
-      d+=` L ${guideEntry.x} ${guideEntry.y} Q ${guideX} ${guideY-18} ${guideExit.x} ${guideExit.y}`;
-      numberedSegments.push({a:prev,b:guideEntry});
-      freeX=guideExit.x+8;
-    }else{
-      // Bei 2 und 4 Rollen kommt das Seil direkt aus der letzten festen Rolle nach unten.
-      freeX=prev.x+8;
-    }
     path(ropeLayer,d);
 
-    // Freies Ende immer senkrecht nach unten.
-    const freeTop=needsGuide?guideY+5:topY+4;
+    // Das freie Ende kommt direkt von der letzten festen Rolle und hängt immer nach unten.
+    const freeX=prev.x+8;
+    const freeTop=topY+4;
     path(freeEndLayer,`M ${freeX-8} ${freeTop} Q ${freeX} ${freeTop+5} ${freeX} ${freeTop+16} L ${freeX} 304`,'#a3402b',4,'rope-motion');
     add(freeEndLayer,'line',{x1:freeX,y1:245,x2:freeX,y2:304,stroke:'#a3402b','stroke-width':4,'marker-end':'url(#arrowDown)'});
     const txt=add(freeEndLayer,'text',{x:freeX,y:331,'font-size':13,fill:'#a3402b','font-weight':800,'text-anchor':'middle'});txt.textContent='Hier hängst du!';
 
-    // Die Seilstücke wie im Referenzbild direkt durchnummerieren.
-    // Das letzte Seilstück ist bei gerader Rollenzahl das rote freie Ende.
+    // Nur die tragenden Seilstücke werden nummeriert. Das rote freie Zugende gehört nicht dazu.
     numberedSegments.forEach((seg,i)=>{
       const mx=(seg.a.x+seg.b.x)/2;
       const my=(seg.a.y+seg.b.y)/2;
@@ -214,11 +190,8 @@
       const ox=-dy/len*14, oy=dx/len*14;
       strandNumber(ropeLayer,i+1,mx+ox,my+oy);
     });
-    if(numberedSegments.length<supporting){
-      strandNumber(freeEndLayer,supporting,freeX+18,(freeTop+304)/2);
-    }
 
-    const label=add(ropeLayer,'text',{x:62,y:190,'font-size':12,fill:'#5c3d22','font-weight':700});
+    const label=add(ropeLayer,'text',{x:55,y:190,'font-size':12,fill:'#5c3d22','font-weight':700});
     label.textContent=`${supporting} tragende Seilstücke`;
   }
 
@@ -232,7 +205,7 @@
     return ['🚗','ein kleines Auto'];
   }
   function renderText(){
-    const factor=rolls+1;
+    const factor=rolls;
     const lift=bodyWeight*factor;
     $('bodyWeight').textContent=bodyWeight;
     $('bodyWeightText').textContent=bodyWeight;
@@ -245,7 +218,7 @@
     const wrap=$('rollButtons');wrap.innerHTML='';
     rollOptions.forEach(n=>{
       const b=document.createElement('button');b.textContent=n;b.className=n===rolls?'active':'';
-      b.setAttribute('aria-label',`${n} ${n===1?'Rolle':'Rollen'}`);
+      b.setAttribute('aria-label',`${n} Rollen`);
       b.onclick=()=>{rolls=n;renderButtons();renderText();renderModel();};wrap.appendChild(b);
     });
   }
